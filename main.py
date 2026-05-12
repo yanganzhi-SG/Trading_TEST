@@ -12,10 +12,10 @@ st.set_page_config(
 )
 
 st.title("⚔️ GL Team Forge")
-st.caption("Great League Team Builder (PvPoke CSV)")
+st.caption("Great League PvP Team Builder")
 
 # =====================================================
-# LOAD CSV FROM GITHUB
+# LOAD CSV
 # =====================================================
 
 @st.cache_data
@@ -30,34 +30,62 @@ df = load_data()
 pokemon_list = sorted(df["Pokemon"].unique())
 
 # =====================================================
-# MOVE EFFECT DATABASE (PvP style approximations)
+# TYPE EFFECTIVENESS (simplified PvP logic)
+# =====================================================
+
+TYPE_EFFECTS = {
+    "Normal": [],
+    "Fire": ["Grass", "Ice", "Bug", "Steel"],
+    "Water": ["Fire", "Ground", "Rock"],
+    "Electric": ["Water", "Flying"],
+    "Grass": ["Water", "Ground", "Rock"],
+    "Ice": ["Grass", "Ground", "Flying", "Dragon"],
+    "Fighting": ["Normal", "Ice", "Rock", "Dark", "Steel"],
+    "Poison": ["Grass", "Fairy"],
+    "Ground": ["Fire", "Electric", "Poison", "Rock", "Steel"],
+    "Flying": ["Grass", "Fighting", "Bug"],
+    "Psychic": ["Fighting", "Poison"],
+    "Bug": ["Grass", "Psychic", "Dark"],
+    "Rock": ["Fire", "Ice", "Flying", "Bug"],
+    "Ghost": ["Psychic", "Ghost"],
+    "Dragon": ["Dragon"],
+    "Dark": ["Psychic", "Ghost"],
+    "Steel": ["Ice", "Rock", "Fairy"],
+    "Fairy": ["Fighting", "Dragon", "Dark"],
+}
+
+def type_effect(attacker_type, defender_type):
+
+    if defender_type in TYPE_EFFECTS.get(attacker_type, []):
+        return "🟢 Super Effective"
+
+    if attacker_type in TYPE_EFFECTS.get(defender_type, []):
+        return "🔴 Weak"
+
+    return ""
+
+# =====================================================
+# MOVE EFFECTS (color coded)
 # =====================================================
 
 MOVE_EFFECTS = {
-    "Body Slam": "No buff/debuff (spam move)",
-    "Surf": "No buff/debuff",
-    "Hydro Pump": "High damage (no effect)",
-    "Ice Beam": "No effect",
-    "Thunderbolt": "No effect",
-    "Shadow Ball": "No effect",
-    "Psychic": "10% chance: -1 Defense",
-    "Flamethrower": "10% chance: -1 Attack",
-    "Dragon Claw": "No effect",
-    "Stone Edge": "No effect",
-    "Earthquake": "No effect",
-    "Leaf Blade": "No effect",
-    "Power-Up Punch": "100% chance: +1 Attack",
-    "Psychic Fangs": "100% chance: -1 Defense",
-    "Breaking Swipe": "100% chance: -1 Attack",
-    "Bubble Beam": "100% chance: -1 Attack",
-    "Icy Wind": "100% chance: -1 Attack",
-    "Draco Meteor": "100% chance: -2 Attack",
-    "Overheat": "100% chance: -2 Attack",
+    "Power-Up Punch": ("🟢 +1 ATK", "#2ecc71"),
+    "Psychic Fangs": ("🔴 -1 DEF", "#e74c3c"),
+    "Breaking Swipe": ("🔴 -1 ATK", "#e74c3c"),
+    "Icy Wind": ("🔴 -1 ATK", "#3498db"),
+    "Bubble Beam": ("🔴 -1 ATK", "#3498db"),
+    "Draco Meteor": ("🔴 -2 ATK", "#9b59b6"),
+    "Overheat": ("🔴 -2 ATK", "#e67e22"),
+    "Psychic": ("🔴 -1 DEF (chance)", "#f1c40f"),
+    "Flamethrower": ("🔴 -1 ATK (chance)", "#f39c12"),
 }
 
 def move_effect(move):
 
-    return MOVE_EFFECTS.get(move, "No effect / unknown")
+    if move in MOVE_EFFECTS:
+        return MOVE_EFFECTS[move]
+
+    return ("", "")  # no text if no effect
 
 # =====================================================
 # SESSION STATE
@@ -90,6 +118,7 @@ if search:
     if not matches:
         st.warning("No Pokémon found.")
     else:
+
         for name in matches:
 
             row = get_row(name)
@@ -101,12 +130,29 @@ if search:
                 st.caption(f"{row['Type 1']} / {row.get('Type 2','')}")
 
             with col2:
-                st.write(f"⚡ Fast Move: {row['Fast Move']}")
-                st.write(f"🔥 Charge 1: {row['Charged Move 1']}")
-                st.write(f"💥 Effect: {move_effect(row['Charged Move 1'])}")
 
-                st.write(f"🔥 Charge 2: {row['Charged Move 2']}")
-                st.write(f"💥 Effect: {move_effect(row['Charged Move 2'])}")
+                # FAST MOVE
+                st.write(f"⚡ Fast: {row['Fast Move']}")
+
+                # CHARGE 1
+                effect1, color1 = move_effect(row["Charged Move 1"])
+                if effect1:
+                    st.markdown(
+                        f"🔥 {row['Charged Move 1']}  <span style='color:{color1}'>{effect1}</span>",
+                        unsafe_allow_html=True
+                    )
+                else:
+                    st.write(f"🔥 {row['Charged Move 1']}")
+
+                # CHARGE 2
+                effect2, color2 = move_effect(row["Charged Move 2"])
+                if effect2:
+                    st.markdown(
+                        f"💥 {row['Charged Move 2']}  <span style='color:{color2}'>{effect2}</span>",
+                        unsafe_allow_html=True
+                    )
+                else:
+                    st.write(f"💥 {row['Charged Move 2']}")
 
             with col3:
                 if st.button("Add", key=f"add_{name}"):
@@ -136,18 +182,42 @@ for p in st.session_state.team:
 
         st.markdown(f"### {p}")
 
-        st.write(f"⚡ Fast Move: {row['Fast Move']}")
-        st.write(f"🔥 {row['Charged Move 1']} → {move_effect(row['Charged Move 1'])}")
-        st.write(f"🔥 {row['Charged Move 2']} → {move_effect(row['Charged Move 2'])}")
+        effect1, color1 = move_effect(row["Charged Move 1"])
+        effect2, color2 = move_effect(row["Charged Move 2"])
+
+        st.write(f"⚡ Fast: {row['Fast Move']}")
+
+        if effect1:
+            st.markdown(
+                f"🔥 {row['Charged Move 1']} <span style='color:{color1}'>{effect1}</span>",
+                unsafe_allow_html=True
+            )
+        else:
+            st.write(f"🔥 {row['Charged Move 1']}")
+
+        if effect2:
+            st.markdown(
+                f"💥 {row['Charged Move 2']} <span style='color:{color2}'>{effect2}</span>",
+                unsafe_allow_html=True
+            )
+        else:
+            st.write(f"💥 {row['Charged Move 2']}")
+
+        # TYPE EFFECTIVENESS PREVIEW
+        t1 = row["Type 1"]
+        t2 = row.get("Type 2", "")
+
+        st.caption(
+            f"Type: {t1} / {t2}"
+        )
 
     with col2:
-
         if st.button("❌", key=f"remove_{p}"):
             st.session_state.team.remove(p)
             st.rerun()
 
 # =====================================================
-# SIMPLE TEAM SCORING (based on stats instead of Score column)
+# SIMPLE TEAM SCORE (STATS BASED)
 # =====================================================
 
 def team_power(team):
@@ -194,11 +264,11 @@ if len(st.session_state.team) >= 3:
             f"""
 🔥 Best Trio:
 
-1. {best[0]}
-2. {best[1]}
-3. {best[2]}
+{best[0]}
+{best[1]}
+{best[2]}
 
-💪 Team Power: {best_score}
+💪 Power: {best_score}
 """
         )
 
@@ -215,7 +285,7 @@ if len(st.session_state.team) == 6:
 
     st.success(
         f"""
-Total Team Power: {power}
+Total Power: {power}
 Average: {round(power/6, 2)}
 """
     )
@@ -226,7 +296,7 @@ Average: {round(power/6, 2)}
 
 with st.sidebar:
 
-    st.header("📊 Info")
+    st.header("📊 Stats")
 
     st.write(f"Pokémon loaded: {len(df)}")
     st.write(f"Team size: {len(st.session_state.team)}")
