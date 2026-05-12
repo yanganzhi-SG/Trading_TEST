@@ -5,6 +5,16 @@ import pandas as pd
 import itertools
 
 # =========================================================
+# OPTIONAL GEMINI API KEYS
+# =========================================================
+
+api1 = "PUT_KEY_HERE"
+api2 = "PUT_KEY_HERE"
+api3 = "PUT_KEY_HERE"
+api4 = "PUT_KEY_HERE"
+api5 = "PUT_KEY_HERE"
+
+# =========================================================
 # PAGE CONFIG
 # =========================================================
 
@@ -59,19 +69,6 @@ TYPE_COLORS = {
     "Fairy": "#D685AD",
 }
 
-TOP_META_THREATS = [
-    "Lanturn",
-    "Registeel",
-    "Medicham",
-    "Gligar",
-    "Azumarill",
-    "Skarmory",
-    "Annihilape",
-    "Whiscash",
-    "Carbink",
-    "Bastiodon"
-]
-
 # =========================================================
 # SESSION STATE
 # =========================================================
@@ -79,19 +76,23 @@ TOP_META_THREATS = [
 if "squad" not in st.session_state:
     st.session_state.squad = []
 
-if "df" not in st.session_state:
-    st.session_state.df = None
+if "pokemon_df" not in st.session_state:
+    st.session_state.pokemon_df = None
 
 # =========================================================
 # HELPERS
 # =========================================================
 
+def normalize_name(name):
+    return str(name).strip().lower()
+
+
 def get_weaknesses(pokemon):
 
     weaknesses = []
 
-    t1 = str(pokemon.get("type1", ""))
-    t2 = str(pokemon.get("type2", ""))
+    t1 = str(pokemon.get("type1", "")).strip()
+    t2 = str(pokemon.get("type2", "")).strip()
 
     if t1 in TYPE_WEAKNESSES:
         weaknesses.extend(TYPE_WEAKNESSES[t1])
@@ -104,10 +105,9 @@ def get_weaknesses(pokemon):
 
 def role_fit_lead(row):
 
-    return round(
-        (float(row["leadScore"]) * 0.6)
-        + (float(row["consistencyScore"]) * 0.4),
-        1
+    return (
+        float(row["leadScore"]) * 0.6
+        + float(row["consistencyScore"]) * 0.4
     )
 
 
@@ -118,19 +118,17 @@ def role_fit_switch(row):
         + float(row["score"])
     ) / 2
 
-    return round(
-        (float(row["switchScore"]) * 0.7)
-        + (bulk * 0.3),
-        1
+    return (
+        float(row["switchScore"]) * 0.7
+        + bulk * 0.3
     )
 
 
 def role_fit_closer(row):
 
-    return round(
-        (float(row["closerScore"]) * 0.8)
-        + (float(row["attackerScore"]) * 0.2),
-        1
+    return (
+        float(row["closerScore"]) * 0.8
+        + float(row["attackerScore"]) * 0.2
     )
 
 
@@ -140,12 +138,12 @@ def best_role(row):
     switch = role_fit_switch(row)
     closer = role_fit_closer(row)
 
-    best = max(lead, switch, closer)
+    highest = max(lead, switch, closer)
 
-    if best == lead:
+    if highest == lead:
         return "🟡 Lead"
 
-    if best == switch:
+    if highest == switch:
         return "🟢 Safe Switch"
 
     return "🔴 Closer"
@@ -153,20 +151,22 @@ def best_role(row):
 
 def duo_core_score(a, b):
 
+    score = 60
+
     weak_a = set(get_weaknesses(a))
     weak_b = set(get_weaknesses(b))
-
-    score = 60
 
     shared = weak_a.intersection(weak_b)
 
     score -= len(shared) * 10
 
-    cover = weak_a.symmetric_difference(weak_b)
+    cover_bonus = len(
+        weak_a.symmetric_difference(weak_b)
+    ) * 3
 
-    score += len(cover) * 3
+    score += cover_bonus
 
-    return max(0, min(100, score))
+    return round(max(0, min(100, score)), 1)
 
 
 def trio_score(team):
@@ -179,15 +179,13 @@ def trio_score(team):
         lead + switch + closer
     ) / 3
 
-    type_diversity = len(
-        set([
-            team[0]["type1"],
-            team[1]["type1"],
-            team[2]["type1"]
-        ])
-    )
+    unique_types = len(set([
+        team[0]["type1"],
+        team[1]["type1"],
+        team[2]["type1"]
+    ]))
 
-    diversity_bonus = type_diversity * 10
+    diversity_bonus = unique_types * 10
 
     consistency = (
         float(team[0]["consistencyScore"])
@@ -204,7 +202,7 @@ def trio_score(team):
     return round(min(total, 100), 1)
 
 
-def get_line_structure(score):
+def line_structure(score):
 
     if score >= 82:
         return "⚡ Trio Core"
@@ -215,7 +213,7 @@ def get_line_structure(score):
     return "💥 Carry Line"
 
 
-def get_archetype(team):
+def archetype(team):
 
     types = [
         team[0]["type1"],
@@ -237,47 +235,45 @@ def get_archetype(team):
 
 def pokemon_card(pokemon):
 
-    weaknesses = get_weaknesses(pokemon)
-
-    weakness_text = ", ".join(weaknesses)
-
     role = best_role(pokemon)
 
-    type1 = pokemon.get("type1", "")
-    type2 = pokemon.get("type2", "")
+    weak = ", ".join(get_weaknesses(pokemon))
 
-    color1 = TYPE_COLORS.get(type1, "#444")
-    color2 = TYPE_COLORS.get(type2, "#444")
+    t1 = pokemon.get("type1", "")
+    t2 = pokemon.get("type2", "")
+
+    c1 = TYPE_COLORS.get(t1, "#444")
+    c2 = TYPE_COLORS.get(t2, "#444")
 
     st.markdown(
         f"""
         <div style="
             background:#111;
             padding:18px;
-            border-radius:15px;
+            border-radius:16px;
             border:1px solid #333;
-            margin-bottom:10px;
+            margin-bottom:12px;
         ">
             <h3>{pokemon['speciesName']}</h3>
 
             <span style="
-                background:{color1};
-                padding:6px 10px;
-                border-radius:10px;
+                background:{c1};
                 color:white;
+                padding:6px 12px;
+                border-radius:10px;
                 font-size:14px;
             ">
-                {type1}
+                {t1}
             </span>
 
             <span style="
-                background:{color2};
-                padding:6px 10px;
-                border-radius:10px;
+                background:{c2};
                 color:white;
+                padding:6px 12px;
+                border-radius:10px;
                 font-size:14px;
             ">
-                {type2}
+                {t2}
             </span>
 
             <br><br>
@@ -287,21 +283,21 @@ def pokemon_card(pokemon):
             <b>Fast Move:</b> {pokemon['fastMove']}<br>
             <b>Charged Move 1:</b> {pokemon['chargedMove1']}<br>
             <b>Charged Move 2:</b> {pokemon['chargedMove2']}<br>
-            <b>Weak To:</b> {weakness_text}
+            <b>Weak To:</b> {weak}
         </div>
         """,
         unsafe_allow_html=True
     )
 
 # =========================================================
-# HEADER
+# TITLE
 # =========================================================
 
 st.title("⚔️ GL Team Forge")
 st.caption("Pokémon GO Great League Team Builder")
 
 # =========================================================
-# UPLOAD CSV
+# CSV UPLOAD
 # =========================================================
 
 uploaded = st.file_uploader(
@@ -311,46 +307,94 @@ uploaded = st.file_uploader(
 
 if uploaded is not None:
 
-    df = pd.read_csv(uploaded)
+    try:
 
-    st.session_state.df = df
+        df = pd.read_csv(uploaded)
 
-    st.success(f"Loaded {len(df)} Pokémon")
+        # CLEAN COLUMN NAMES
+        df.columns = df.columns.str.strip()
+
+        # CLEAN TEXT FIELDS
+        text_columns = [
+            "speciesName",
+            "type1",
+            "type2",
+            "fastMove",
+            "chargedMove1",
+            "chargedMove2"
+        ]
+
+        for col in text_columns:
+
+            if col in df.columns:
+                df[col] = df[col].astype(str).fillna("")
+
+        # CLEAN NUMERIC FIELDS
+        numeric_cols = [
+            "score",
+            "leadScore",
+            "switchScore",
+            "closerScore",
+            "attackerScore",
+            "consistencyScore"
+        ]
+
+        for col in numeric_cols:
+
+            if col in df.columns:
+                df[col] = pd.to_numeric(
+                    df[col],
+                    errors="coerce"
+                ).fillna(0)
+
+        st.session_state.pokemon_df = df
+
+        st.success(
+            f"Loaded {len(df)} Pokémon from CSV"
+        )
+
+    except Exception as e:
+
+        st.error(
+            f"CSV Error: {e}"
+        )
 
 # =========================================================
 # SEARCH SYSTEM
 # =========================================================
 
-if st.session_state.df is not None:
+if st.session_state.pokemon_df is not None:
 
-    df = st.session_state.df
+    df = st.session_state.pokemon_df
 
     st.divider()
 
     st.subheader("🔍 Search Pokémon")
 
-    current_names = [
-        p["speciesName"]
+    search = st.text_input(
+        "Search",
+        placeholder="Type Pokémon name..."
+    )
+
+    existing_names = [
+        normalize_name(p["speciesName"])
         for p in st.session_state.squad
     ]
 
-    search = st.text_input(
-        "Type Pokémon Name",
-        placeholder="Start typing..."
-    )
+    if search:
 
-    if search and len(st.session_state.squad) < 6:
+        search_lower = normalize_name(search)
 
         filtered = df[
             df["speciesName"]
-            .fillna("")
             .str.lower()
-            .str.contains(search.lower())
+            .str.contains(search_lower, na=False)
         ]
 
         filtered = filtered[
             ~filtered["speciesName"]
-            .isin(current_names)
+            .str.lower()
+            .isin(existing_names)
         ]
 
         filtered = filtered.sort_values(
@@ -359,37 +403,44 @@ if st.session_state.df is not None:
         ).head(8)
 
         if len(filtered) == 0:
-            st.warning("No Pokémon found")
 
-        for _, row in filtered.iterrows():
+            st.warning(
+                "No Pokémon found"
+            )
 
-            col1, col2 = st.columns([6, 1])
+        else:
 
-            with col1:
+            for idx, row in filtered.iterrows():
 
-                st.markdown(
-                    f"""
-                    **{row['speciesName']}**
-                    | {row['type1']} / {row['type2']}
-                    | Score: {row['score']}
-                    """
-                )
+                col1, col2 = st.columns([6, 1])
 
-            with col2:
+                with col1:
 
-                if st.button(
-                    "Add",
-                    key=f"add_{row['speciesName']}"
-                ):
-
-                    st.session_state.squad.append(
-                        row.to_dict()
+                    st.markdown(
+                        f"""
+                        **{row['speciesName']}**
+                        | {row['type1']} / {row['type2']}
+                        | Score: {row['score']}
+                        """
                     )
 
-                    st.rerun()
+                with col2:
+
+                    if st.button(
+                        "Add",
+                        key=f"add_{idx}"
+                    ):
+
+                        if len(st.session_state.squad) < 6:
+
+                            st.session_state.squad.append(
+                                row.to_dict()
+                            )
+
+                            st.rerun()
 
 # =========================================================
-# SQUAD
+# SQUAD DISPLAY
 # =========================================================
 
 if len(st.session_state.squad) > 0:
@@ -397,7 +448,7 @@ if len(st.session_state.squad) > 0:
     st.divider()
 
     st.header(
-        f"👥 Squad ({len(st.session_state.squad)}/6)"
+        f"👥 Your Squad ({len(st.session_state.squad)}/6)"
     )
 
     if len(st.session_state.squad) >= 6:
@@ -469,26 +520,22 @@ if len(st.session_state.squad) >= 3:
 
     for p in squad:
 
-        for weak in get_weaknesses(p):
+        weaknesses = get_weaknesses(p)
+
+        for weak in weaknesses:
 
             weakness_count[weak] = (
                 weakness_count.get(weak, 0) + 1
             )
-
-    shared_weaknesses = {
-        k: v
-        for k, v in weakness_count.items()
-        if v >= 3
-    }
 
     # =====================================================
     # SQUAD SCORE
     # =====================================================
 
     squad_score = (
-        avg_score * 0.4
-        + unique_types * 4
-        + len(duo_cores) * 5
+        avg_score * 0.5
+        + unique_types * 5
+        + len(duo_cores) * 4
     )
 
     squad_score = round(
@@ -516,7 +563,7 @@ if len(st.session_state.squad) >= 3:
 
     with col3:
         st.metric(
-            "Primary Type Diversity",
+            "Type Diversity",
             unique_types
         )
 
@@ -526,19 +573,30 @@ if len(st.session_state.squad) >= 3:
 
     st.subheader("⚠️ Warnings")
 
-    if len(shared_weaknesses) == 0:
-        st.success("No major shared weaknesses")
+    found_warning = False
 
-    for weak, amount in shared_weaknesses.items():
+    for weak, amount in weakness_count.items():
 
-        st.error(
-            f"🔴 {amount} Pokémon weak to {weak}"
-        )
+        if amount >= 3:
+
+            found_warning = True
+
+            st.error(
+                f"🔴 {amount} Pokémon weak to {weak}"
+            )
 
     if len(duo_cores) == 0:
 
+        found_warning = True
+
         st.warning(
             "🟡 NO DUO CORES FOUND"
+        )
+
+    if not found_warning:
+
+        st.success(
+            "No major squad problems detected"
         )
 
     # =====================================================
@@ -547,17 +605,19 @@ if len(st.session_state.squad) >= 3:
 
     st.subheader("🤝 Duo Cores")
 
-    if duo_cores:
+    if len(duo_cores) > 0:
 
         for a, b, score in duo_cores:
 
             st.success(
-                f"{a} + {b} — Score {score}"
+                f"{a} + {b} — Core Score {score}"
             )
 
     else:
 
-        st.info("No strong duo cores")
+        st.info(
+            "No strong duo cores found"
+        )
 
     # =====================================================
     # BEST TEAMS
@@ -565,10 +625,13 @@ if len(st.session_state.squad) >= 3:
 
     st.divider()
 
-    st.header("🏆 Best Battle Teams")
+    st.header("🏆 Best Teams")
 
     all_teams = list(
-        itertools.combinations(squad, 3)
+        itertools.combinations(
+            squad,
+            3
+        )
     )
 
     scored_teams = []
@@ -577,17 +640,18 @@ if len(st.session_state.squad) >= 3:
 
         trio = list(trio)
 
-        trio = sorted(
+        # AUTO ROLE SORTING
+        trio_sorted = sorted(
             trio,
             key=lambda x: role_fit_lead(x),
             reverse=True
         )
 
-        score = trio_score(trio)
+        score = trio_score(trio_sorted)
 
         scored_teams.append(
             (
-                trio,
+                trio_sorted,
                 score
             )
         )
@@ -606,11 +670,11 @@ if len(st.session_state.squad) >= 3:
     )
 
     st.markdown(
-        f"### {get_line_structure(best_score)}"
+        f"### {line_structure(best_score)}"
     )
 
     st.markdown(
-        f"### {get_archetype(best_team)}"
+        f"### {archetype(best_team)}"
     )
 
     lead = best_team[0]
@@ -620,14 +684,17 @@ if len(st.session_state.squad) >= 3:
     col1, col2, col3 = st.columns(3)
 
     with col1:
+
         st.subheader("🟡 LEAD")
         pokemon_card(lead)
 
     with col2:
+
         st.subheader("🟢 SAFE SWITCH")
         pokemon_card(switch)
 
     with col3:
+
         st.subheader("🔴 CLOSER")
         pokemon_card(closer)
 
