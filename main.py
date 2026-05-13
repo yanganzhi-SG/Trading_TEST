@@ -1,26 +1,17 @@
 import streamlit as st
 import pandas as pd
-import itertools
-import random
-import requests
-
-# =====================================================
-# 🔑 GEMINI API KEYS (PASTE YOUR KEYS HERE LOCALLY)
-# =====================================================
-
-GEMINI_KEYS = [ "AIzaSyBgXQuKQsahIUbfJ2bJ0hewjxhCBThxgZo", "AIzaSyBluOzXVSItFulOip-APayR18w1jm1b8QE", "AIzaSyC5rnO3ASEVzGd8W-DSAFjgzTrfEA4XzFg", "AIzaSyARNFj-KwfpOvyrbqarm9_juitYg_ilb1w", "AIzaSyCRj9zqBpQXA3OO-7qrb5xD1GaSulk5bQ4" ]
 
 # =====================================================
 # PAGE SETUP
 # =====================================================
 
 st.set_page_config(
-    page_title="AI PvPoke Engine",
+    page_title="Pokémon GO Move Checker",
     layout="wide"
 )
 
-st.title("⚔️ AI PvPoke Engine")
-st.caption("Meta-aware Great League Team Builder")
+st.title("⚔️ Pokémon GO Move & Type Checker")
+st.caption("Search Pokémon with live autocomplete")
 
 # =====================================================
 # LOAD CSV
@@ -28,206 +19,292 @@ st.caption("Meta-aware Great League Team Builder")
 
 @st.cache_data
 def load_data():
+
     df = pd.read_csv("cp1500_all_overall_rankings.csv")
+
     df.columns = df.columns.str.strip()
-    df["Pokemon"] = df["Pokemon"].astype(str).str.strip()
+
+    df["Pokemon"] = (
+        df["Pokemon"]
+        .astype(str)
+        .str.strip()
+    )
+
     return df
 
 
 df = load_data()
-pokemon_list = df["Pokemon"].dropna().tolist()
 
 # =====================================================
-# DYNAMIC META
+# REMOVE DUPLICATES
 # =====================================================
 
-def get_dynamic_meta(df, top_n=30):
-    return df.sort_values("Score", ascending=False).head(top_n)["Pokemon"].tolist()
-
-DYNAMIC_META = get_dynamic_meta(df)
+pokemon_names = sorted(df["Pokemon"].dropna().unique().tolist())
 
 # =====================================================
-# GEMINI CALL WITH FALLBACK KEYS
+# TYPE EFFECTIVENESS
 # =====================================================
 
-def call_gemini(prompt):
-
-    for key in GEMINI_KEYS:
-
-        try:
-            url = f"https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key={key}"
-
-            payload = {
-                "contents": [
-                    {"parts": [{"text": prompt}]}
-                ]
-            }
-
-            r = requests.post(url, json=payload, timeout=10)
-
-            if r.status_code == 200:
-                data = r.json()
-                return data["candidates"][0]["content"]["parts"][0]["text"]
-
-        except:
-            continue
-
-    return None
-
-# =====================================================
-# AI TEAM BUILDER
-# =====================================================
-
-def ai_build_team(pokemon_list):
-
-    prompt = f"""
-You are a Pokémon GO Great League expert.
-
-Build the BEST possible team of 6 Pokémon.
-
-Rules:
-- Use only strong PvP meta logic
-- Ensure type coverage
-- Avoid duplicate weaknesses
-- Include balance (lead, safe swap, closer roles)
-
-Available Pokémon:
-{pokemon_list[:80]}
-
-Return ONLY 6 Pokémon names separated by commas.
-"""
-
-    response = call_gemini(prompt)
-
-    if not response:
-        return random.sample(pokemon_list, 6)
-
-    names = [p.strip() for p in response.split(",")]
-
-    valid = [p for p in names if p in pokemon_list]
-
-    if len(valid) >= 3:
-        return valid[:6]
-
-    return random.sample(pokemon_list, 6)
-
-# =====================================================
-# TEAM SCORING
-# =====================================================
-
-def score_team(team):
-
-    score = 0
-    types = []
-
-    for p in team:
-
-        row = df[df["Pokemon"] == p].iloc[0]
-
-        score += float(row["Attack"]) + float(row["Defense"]) + float(row["Stamina"])
-
-        types.append(row["Type 1"])
-
-        if p in DYNAMIC_META:
-            score += 50
-
-    score += len(set(types)) * 40
-
-    return score
+TYPE_EFFECTIVENESS = {
+    "fire": {
+        "strong": ["grass", "ice", "bug", "steel"],
+        "weak": ["fire", "water", "rock", "dragon"]
+    },
+    "water": {
+        "strong": ["fire", "ground", "rock"],
+        "weak": ["water", "grass", "dragon"]
+    },
+    "grass": {
+        "strong": ["water", "ground", "rock"],
+        "weak": ["fire", "grass", "poison", "flying", "bug", "dragon", "steel"]
+    },
+    "electric": {
+        "strong": ["water", "flying"],
+        "weak": ["electric", "grass", "dragon"],
+        "immune": ["ground"]
+    },
+    "ground": {
+        "strong": ["fire", "electric", "poison", "rock", "steel"],
+        "weak": ["grass", "bug"],
+        "immune": ["flying"]
+    },
+    "rock": {
+        "strong": ["fire", "ice", "flying", "bug"],
+        "weak": ["fighting", "ground", "steel"]
+    },
+    "ghost": {
+        "strong": ["psychic", "ghost"],
+        "weak": ["dark"],
+        "immune": ["normal"]
+    },
+    "dragon": {
+        "strong": ["dragon"],
+        "weak": ["steel"],
+        "immune": ["fairy"]
+    },
+    "fighting": {
+        "strong": ["normal", "rock", "steel", "ice", "dark"],
+        "weak": ["poison", "flying", "psychic", "bug", "fairy"],
+        "immune": ["ghost"]
+    },
+    "flying": {
+        "strong": ["grass", "fighting", "bug"],
+        "weak": ["electric", "rock", "steel"]
+    },
+    "ice": {
+        "strong": ["grass", "ground", "flying", "dragon"],
+        "weak": ["fire", "water", "ice", "steel"]
+    },
+    "dark": {
+        "strong": ["psychic", "ghost"],
+        "weak": ["fighting", "dark", "fairy"]
+    },
+    "steel": {
+        "strong": ["ice", "rock", "fairy"],
+        "weak": ["fire", "water", "electric", "steel"]
+    },
+    "fairy": {
+        "strong": ["fighting", "dragon", "dark"],
+        "weak": ["fire", "poison", "steel"]
+    },
+    "normal": {
+        "strong": [],
+        "weak": ["rock", "steel"],
+        "immune": ["ghost"]
+    }
+}
 
 # =====================================================
-# REFINE TEAM
+# MOVE TYPES
 # =====================================================
 
-def refine_team(team):
-
-    weakest = min(
-        team,
-        key=lambda p: float(df[df["Pokemon"] == p].iloc[0]["Attack"])
-    )
-
-    team.remove(weakest)
-
-    candidates = [p for p in pokemon_list if p not in team]
-
-    team.append(random.choice(candidates))
-
-    return team
-
-# =====================================================
-# SESSION STATE
-# =====================================================
-
-if "team" not in st.session_state:
-    st.session_state.team = []
-
-# =====================================================
-# UI
-# =====================================================
-
-st.subheader("🧠 AI Team Builder")
-
-if st.button("Generate AI Team"):
-
-    st.session_state.team = ai_build_team(pokemon_list)
-    st.rerun()
-
-if st.button("🔁 Improve Team"):
-
-    if st.session_state.team:
-        st.session_state.team = refine_team(st.session_state.team)
-        st.rerun()
+MOVE_TYPES = {
+    "Mud Shot": "ground",
+    "Mud Bomb": "ground",
+    "Earthquake": "ground",
+    "Stone Edge": "rock",
+    "Body Slam": "normal",
+    "Rollout": "rock",
+    "Hydro Cannon": "water",
+    "Surf": "water",
+    "Ice Beam": "ice",
+    "Thunderbolt": "electric",
+    "Frenzy Plant": "grass",
+    "Shadow Ball": "ghost",
+    "Dragon Claw": "dragon",
+    "Sky Attack": "flying",
+    "Counter": "fighting",
+    "Lick": "ghost",
+    "Spark": "electric",
+    "Wing Attack": "flying",
+    "Volt Switch": "electric",
+    "Water Gun": "water"
+}
 
 # =====================================================
-# DISPLAY TEAM
+# SEARCH
 # =====================================================
 
-st.divider()
-st.subheader("🛡️ Current Team")
+st.subheader("🔍 Search Pokémon")
 
-if not st.session_state.team:
-    st.info("Click Generate AI Team")
+search = st.text_input(
+    "Type Pokémon name",
+    placeholder="Example: quaq"
+)
 
-for p in st.session_state.team:
+selected_pokemon = None
 
-    row = df[df["Pokemon"] == p].iloc[0]
+# LIVE FILTERING
+if search:
 
-    col1, col2 = st.columns([5, 1])
+    matches = [
+        p for p in pokemon_names
+        if search.lower() in p.lower()
+    ]
 
-    with col1:
+    if len(matches) > 0:
 
-        st.markdown(f"### {p}")
+        selected_pokemon = st.selectbox(
+            "Select Pokémon",
+            matches,
+            index=0
+        )
 
-        st.write(f"{row['Type 1']} / {row.get('Type 2','')}")
-
-        if p in DYNAMIC_META:
-            st.success("🔥 META")
-
-    with col2:
-
-        if st.button(f"❌ Remove {p}", key=p):
-
-            st.session_state.team.remove(p)
-            st.rerun()
+    else:
+        st.error("No Pokémon found.")
 
 # =====================================================
-# STATS
+# DISPLAY
 # =====================================================
 
-def team_power(team):
-    return sum(
-        float(df[df["Pokemon"] == p].iloc[0]["Attack"]) +
-        float(df[df["Pokemon"] == p].iloc[0]["Defense"]) +
-        float(df[df["Pokemon"] == p].iloc[0]["Stamina"])
-        for p in team
-    )
+if selected_pokemon:
 
-if len(st.session_state.team) == 6:
+    poke_rows = df[df["Pokemon"] == selected_pokemon]
 
-    st.divider()
-    st.subheader("🔥 Team Analysis")
+    if len(poke_rows) > 0:
 
-    st.success(f"Power Score: {team_power(st.session_state.team)}")
+        row = poke_rows.iloc[0]
+
+        type1 = str(row["Type 1"]).lower()
+
+        type2 = ""
+
+        if "Type 2" in row and pd.notna(row["Type 2"]):
+            type2 = str(row["Type 2"]).lower()
+
+        st.divider()
+
+        st.header(selected_pokemon)
+
+        col1, col2 = st.columns(2)
+
+        # =====================================================
+        # TYPES
+        # =====================================================
+
+        with col1:
+
+            st.subheader("🛡️ Types")
+
+            st.success(type1.capitalize())
+
+            if type2 and type2 != "nan":
+                st.success(type2.capitalize())
+
+        # =====================================================
+        # STATS
+        # =====================================================
+
+        with col2:
+
+            st.subheader("📊 Stats")
+
+            st.write(f"⚔️ Attack: {row['Attack']}")
+            st.write(f"🛡️ Defense: {row['Defense']}")
+            st.write(f"❤️ Stamina: {row['Stamina']}")
+            st.write(f"🔥 CP: {row['CP']}")
+
+        st.divider()
+
+        # =====================================================
+        # MOVES
+        # =====================================================
+
+        st.subheader("⚔️ Moves")
+
+        move_list = [
+            ("Fast Move", str(row["Fast Move"]).strip()),
+            ("Charged Move 1", str(row["Charged Move 1"]).strip()),
+            ("Charged Move 2", str(row["Charged Move 2"]).strip())
+        ]
+
+        for move_label, move_name in move_list:
+
+            move_type = MOVE_TYPES.get(move_name, "unknown")
+
+            with st.container(border=True):
+
+                st.markdown(f"### {move_name}")
+
+                st.write(f"Move Type: **{move_type.capitalize()}**")
+
+                if move_type in TYPE_EFFECTIVENESS:
+
+                    data = TYPE_EFFECTIVENESS[move_type]
+
+                    strong = data.get("strong", [])
+                    weak = data.get("weak", [])
+                    immune = data.get("immune", [])
+
+                    if strong:
+                        st.success(
+                            "✅ Super Effective: " +
+                            ", ".join([x.capitalize() for x in strong])
+                        )
+
+                    if weak:
+                        st.error(
+                            "❌ Not Effective: " +
+                            ", ".join([x.capitalize() for x in weak])
+                        )
+
+                    if immune:
+                        st.warning(
+                            "🚫 No Effect: " +
+                            ", ".join([x.capitalize() for x in immune])
+                        )
+
+        # =====================================================
+        # WEAKNESSES
+        # =====================================================
+
+        st.divider()
+
+        st.subheader("⚠️ Type Matchups")
+
+        weak_to = []
+        resist_to = []
+
+        for atk_type, data in TYPE_EFFECTIVENESS.items():
+
+            strong = data.get("strong", [])
+            weak = data.get("weak", [])
+
+            if type1 in strong or type2 in strong:
+                weak_to.append(atk_type.capitalize())
+
+            if type1 in weak or type2 in weak:
+                resist_to.append(atk_type.capitalize())
+
+        c1, c2 = st.columns(2)
+
+        with c1:
+            st.error("Weak To")
+            st.write(", ".join(weak_to) if weak_to else "None")
+
+        with c2:
+            st.success("Resists")
+            st.write(", ".join(resist_to) if resist_to else "None")
 
 # =====================================================
 # SIDEBAR
@@ -235,11 +312,11 @@ if len(st.session_state.team) == 6:
 
 with st.sidebar:
 
-    st.header("📊 System")
+    st.header("📊 Database")
 
-    st.write(f"Pokémon loaded: {len(df)}")
-    st.write(f"Dynamic meta size: {len(DYNAMIC_META)}")
+    st.write(f"Pokémon Loaded: {len(pokemon_names)}")
 
-    if st.button("Clear Team"):
-        st.session_state.team = []
-        st.rerun()
+    st.write("✅ Working live search")
+    st.write("✅ Dropdown autocomplete")
+    st.write("✅ Move effectiveness")
+    st.write("✅ Type weaknesses")
