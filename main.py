@@ -1,154 +1,116 @@
-import streamlit as st
-import pandas as pd
-import re
-
 # =========================================================
-# PAGE CONFIG
+# TYPE EFFECTIVENESS
 # =========================================================
 
-st.set_page_config(
-    page_title="Pokémon GO Search",
-    layout="wide"
-)
+TYPE_EFFECTIVENESS = {
+    "Normal": {
+        "strong": [],
+        "weak": ["Rock", "Steel"],
+        "immune": ["Ghost"]
+    },
 
-st.title("⚔️ Pokémon GO Search Engine")
+    "Fire": {
+        "strong": ["Grass", "Ice", "Bug", "Steel"],
+        "weak": ["Fire", "Water", "Rock", "Dragon"],
+        "immune": []
+    },
 
-# =========================================================
-# TYPE COLORS
-# =========================================================
+    "Water": {
+        "strong": ["Fire", "Ground", "Rock"],
+        "weak": ["Water", "Grass", "Dragon"],
+        "immune": []
+    },
 
-TYPE_COLORS = {
-    "Normal": "#A8A77A",
-    "Fire": "#EE8130",
-    "Water": "#6390F0",
-    "Electric": "#F7D02C",
-    "Grass": "#7AC74C",
-    "Ice": "#96D9D6",
-    "Fighting": "#C22E28",
-    "Poison": "#A33EA1",
-    "Ground": "#E2BF65",
-    "Flying": "#A98FF3",
-    "Psychic": "#F95587",
-    "Bug": "#A6B91A",
-    "Rock": "#B6A136",
-    "Ghost": "#735797",
-    "Dragon": "#6F35FC",
-    "Dark": "#705746",
-    "Steel": "#B7B7CE",
-    "Fairy": "#D685AD"
+    "Electric": {
+        "strong": ["Water", "Flying"],
+        "weak": ["Electric", "Grass", "Dragon"],
+        "immune": ["Ground"]
+    },
+
+    "Grass": {
+        "strong": ["Water", "Ground", "Rock"],
+        "weak": ["Fire", "Grass", "Poison", "Flying", "Bug", "Dragon", "Steel"],
+        "immune": []
+    },
+
+    "Ice": {
+        "strong": ["Grass", "Ground", "Flying", "Dragon"],
+        "weak": ["Fire", "Water", "Ice", "Steel"],
+        "immune": []
+    },
+
+    "Fighting": {
+        "strong": ["Normal", "Ice", "Rock", "Dark", "Steel"],
+        "weak": ["Poison", "Flying", "Psychic", "Bug", "Fairy"],
+        "immune": ["Ghost"]
+    },
+
+    "Poison": {
+        "strong": ["Grass", "Fairy"],
+        "weak": ["Poison", "Ground", "Rock", "Ghost"],
+        "immune": ["Steel"]
+    },
+
+    "Ground": {
+        "strong": ["Fire", "Electric", "Poison", "Rock", "Steel"],
+        "weak": ["Grass", "Bug"],
+        "immune": ["Flying"]
+    },
+
+    "Flying": {
+        "strong": ["Grass", "Fighting", "Bug"],
+        "weak": ["Electric", "Rock", "Steel"],
+        "immune": []
+    },
+
+    "Psychic": {
+        "strong": ["Fighting", "Poison"],
+        "weak": ["Psychic", "Steel"],
+        "immune": ["Dark"]
+    },
+
+    "Bug": {
+        "strong": ["Grass", "Psychic", "Dark"],
+        "weak": ["Fire", "Fighting", "Poison", "Flying", "Ghost", "Steel", "Fairy"],
+        "immune": []
+    },
+
+    "Rock": {
+        "strong": ["Fire", "Ice", "Flying", "Bug"],
+        "weak": ["Fighting", "Ground", "Steel"],
+        "immune": []
+    },
+
+    "Ghost": {
+        "strong": ["Psychic", "Ghost"],
+        "weak": ["Dark"],
+        "immune": ["Normal"]
+    },
+
+    "Dragon": {
+        "strong": ["Dragon"],
+        "weak": ["Steel"],
+        "immune": ["Fairy"]
+    },
+
+    "Dark": {
+        "strong": ["Psychic", "Ghost"],
+        "weak": ["Fighting", "Dark", "Fairy"],
+        "immune": []
+    },
+
+    "Steel": {
+        "strong": ["Ice", "Rock", "Fairy"],
+        "weak": ["Fire", "Water", "Electric", "Steel"],
+        "immune": []
+    },
+
+    "Fairy": {
+        "strong": ["Fighting", "Dragon", "Dark"],
+        "weak": ["Fire", "Poison", "Steel"],
+        "immune": []
+    }
 }
-
-# =========================================================
-# CLEAN TEXT FUNCTION
-# =========================================================
-
-def clean_text(text):
-
-    text = str(text).strip().lower()
-
-    # REMOVE * AND SPECIAL SYMBOLS
-    text = re.sub(r"[^a-z0-9\s]", "", text)
-
-    return text
-
-# =========================================================
-# LOAD DATA
-# =========================================================
-
-@st.cache_data
-def load_data():
-
-    rankings = pd.read_csv("cp1500_all_overall_rankings.csv")
-    fast_moves = pd.read_csv("fast_moves.csv")
-    charged_moves = pd.read_csv("charged_moves.csv")
-
-    # CLEAN COLUMNS
-    rankings.columns = rankings.columns.str.strip()
-    fast_moves.columns = fast_moves.columns.str.strip()
-    charged_moves.columns = charged_moves.columns.str.strip()
-
-    # CLEAN POKEMON NAMES
-    rankings["Pokemon"] = (
-        rankings["Pokemon"]
-        .astype(str)
-        .str.strip()
-    )
-
-    # CLEAN MOVE NAMES
-    fast_moves["CleanMove"] = (
-        fast_moves["Move"]
-        .apply(clean_text)
-    )
-
-    charged_moves["CleanMove"] = (
-        charged_moves["Move"]
-        .apply(clean_text)
-    )
-
-    # CLEAN TYPES
-    fast_moves["Type"] = (
-        fast_moves["Type"]
-        .astype(str)
-        .str.strip()
-        .str.title()
-    )
-
-    charged_moves["Type"] = (
-        charged_moves["Type"]
-        .astype(str)
-        .str.strip()
-        .str.title()
-    )
-
-    return rankings, fast_moves, charged_moves
-
-
-df, fast_moves_df, charged_moves_df = load_data()
-
-pokemon_names = sorted(
-    df["Pokemon"]
-    .dropna()
-    .unique()
-    .tolist()
-)
-
-# =========================================================
-# SEARCH BAR
-# =========================================================
-
-selected_pokemon = st.selectbox(
-    "🔍 Search Pokémon",
-    options=pokemon_names,
-    index=None,
-    placeholder="Type qu..."
-)
-
-# =========================================================
-# TYPE BADGE
-# =========================================================
-
-def type_badge(type_name):
-
-    type_name = str(type_name).title().strip()
-
-    color = TYPE_COLORS.get(type_name, "#666666")
-
-    st.markdown(
-        f"""
-        <div style="
-            background-color:{color};
-            color:white;
-            padding:10px;
-            border-radius:12px;
-            text-align:center;
-            font-weight:bold;
-            margin-bottom:10px;
-        ">
-            {type_name}
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
 
 # =========================================================
 # SHOW MOVE
@@ -160,27 +122,15 @@ def show_move(move_name):
 
     clean_move_name = clean_text(move_name)
 
-    # =====================================================
-    # SEARCH FAST MOVES
-    # =====================================================
-
     move_data = fast_moves_df[
         fast_moves_df["CleanMove"] == clean_move_name
     ]
-
-    # =====================================================
-    # SEARCH CHARGED MOVES
-    # =====================================================
 
     if move_data.empty:
 
         move_data = charged_moves_df[
             charged_moves_df["CleanMove"] == clean_move_name
         ]
-
-    # =====================================================
-    # NOT FOUND
-    # =====================================================
 
     if move_data.empty:
 
@@ -194,6 +144,12 @@ def show_move(move_name):
     category = str(row.get("Category", "Unknown")).strip()
 
     color = TYPE_COLORS.get(move_type, "#666666")
+
+    effectiveness = TYPE_EFFECTIVENESS.get(move_type, {})
+
+    strong_against = effectiveness.get("strong", [])
+    weak_against = effectiveness.get("weak", [])
+    immune_against = effectiveness.get("immune", [])
 
     # =====================================================
     # MOVE CARD
@@ -218,119 +174,98 @@ def show_move(move_name):
 
         st.write("")
 
-        col1, col2, col3 = st.columns(3)
+        # =================================================
+        # SUPER EFFECTIVE
+        # =================================================
 
-        with col1:
+        st.subheader("✅ Super Effective Against")
 
-            if pd.notna(row.get("Damage")):
-                st.metric("Damage", row["Damage"])
+        if strong_against:
 
-            if pd.notna(row.get("Energy")):
-                st.metric("Energy", row["Energy"])
+            cols = st.columns(len(strong_against))
 
-        with col2:
+            for i, t in enumerate(strong_against):
 
-            if pd.notna(row.get("Turns")):
-                st.metric("Turns", row["Turns"])
+                with cols[i]:
 
-            if pd.notna(row.get("DPT")):
-                st.metric("DPT", row["DPT"])
+                    c = TYPE_COLORS.get(t, "#666666")
 
-        with col3:
+                    st.markdown(
+                        f"""
+                        <div style="
+                            background-color:{c};
+                            color:white;
+                            padding:10px;
+                            border-radius:10px;
+                            text-align:center;
+                            font-weight:bold;
+                        ">
+                            {t}
+                        </div>
+                        """,
+                        unsafe_allow_html=True
+                    )
 
-            if pd.notna(row.get("EPT")):
-                st.metric("EPT", row["EPT"])
+        # =================================================
+        # NOT VERY EFFECTIVE
+        # =================================================
 
-            if pd.notna(row.get("DPE")):
-                st.metric("DPE", row["DPE"])
+        st.subheader("❌ Not Very Effective Against")
 
-# =========================================================
-# SHOW POKEMON
-# =========================================================
+        if weak_against:
 
-if selected_pokemon:
+            cols = st.columns(len(weak_against))
 
-    pokemon_data = df[
-        df["Pokemon"] == selected_pokemon
-    ]
+            for i, t in enumerate(weak_against):
 
-    if not pokemon_data.empty:
+                with cols[i]:
 
-        row = pokemon_data.iloc[0]
+                    c = TYPE_COLORS.get(t, "#666666")
 
-        st.divider()
+                    st.markdown(
+                        f"""
+                        <div style="
+                            background-color:{c};
+                            color:white;
+                            padding:10px;
+                            border-radius:10px;
+                            text-align:center;
+                            font-weight:bold;
+                        ">
+                            {t}
+                        </div>
+                        """,
+                        unsafe_allow_html=True
+                    )
 
-        st.header(f"⚔️ {selected_pokemon}")
+        # =================================================
+        # IMMUNE
+        # =================================================
 
-        # =====================================================
-        # TYPES + STATS
-        # =====================================================
+        if immune_against:
 
-        col1, col2 = st.columns(2)
+            st.subheader("🚫 No Effect Against")
 
-        # TYPES
-        with col1:
+            cols = st.columns(len(immune_against))
 
-            st.subheader("🧬 Types")
+            for i, t in enumerate(immune_against):
 
-            type1 = str(row.get("Type 1", "")).title().strip()
+                with cols[i]:
 
-            if type1 and type1 != "Nan":
-                type_badge(type1)
+                    c = TYPE_COLORS.get(t, "#666666")
 
-            type2 = str(row.get("Type 2", "")).title().strip()
-
-            if type2 and type2 != "Nan":
-                type_badge(type2)
-
-        # STATS
-        with col2:
-
-            st.subheader("📊 Stats")
-
-            if "Attack" in row:
-                st.metric("Attack", row["Attack"])
-
-            if "Defense" in row:
-                st.metric("Defense", row["Defense"])
-
-            if "Stamina" in row:
-                st.metric("HP", row["Stamina"])
-
-            if "CP" in row:
-                st.metric("CP", row["CP"])
-
-        st.divider()
-
-        # =====================================================
-        # MOVES
-        # =====================================================
-
-        st.subheader("⚡ Fast Move")
-
-        if "Fast Move" in row:
-            show_move(row["Fast Move"])
-
-        st.subheader("🔥 Charged Move 1")
-
-        if "Charged Move 1" in row:
-            show_move(row["Charged Move 1"])
-
-        st.subheader("💥 Charged Move 2")
-
-        if "Charged Move 2" in row:
-            show_move(row["Charged Move 2"])
-
-# =========================================================
-# SIDEBAR
-# =========================================================
-
-with st.sidebar:
-
-    st.header("📘 Features")
-
-    st.write("✅ Fixed * move names")
-    st.write("✅ Removes special symbols")
-    st.write("✅ Aqua Tail* now works")
-    st.write("✅ Correct move colors")
-    st.write("✅ Searches both csv files")
+                    st.markdown(
+                        f"""
+                        <div style="
+                            background-color:{c};
+                            color:white;
+                            padding:10px;
+                            border-radius:10px;
+                            text-align:center;
+                            font-weight:bold;
+                        ">
+                            {t}
+                        </div>
+                        """,
+                        unsafe_allow_html=True
+                    )
