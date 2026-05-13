@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 
 # =====================================================
-# PAGE
+# PAGE CONFIG
 # =====================================================
 
 st.set_page_config(
@@ -10,7 +10,7 @@ st.set_page_config(
     layout="wide"
 )
 
-st.title("⚔️ Pokémon GO Move & Type Checker")
+st.title("⚔️ Pokémon GO Search Engine")
 
 # =====================================================
 # LOAD CSV
@@ -125,46 +125,55 @@ MOVE_TYPES = {
 }
 
 # =====================================================
-# LIVE SEARCH
+# SESSION STATE
+# =====================================================
+
+if "selected_pokemon" not in st.session_state:
+    st.session_state.selected_pokemon = None
+
+# =====================================================
+# SEARCH
 # =====================================================
 
 st.subheader("🔍 Search Pokémon")
 
 search = st.text_input(
     "",
-    placeholder="Type Pokémon name like: quaq"
+    placeholder="Type like: quaq"
 )
 
-selected_pokemon = None
-
 # =====================================================
-# LIVE CLICKABLE RESULTS
+# LIVE RESULTS
 # =====================================================
 
-if search:
+if search.strip() != "":
 
     matches = [
         p for p in pokemon_names
         if search.lower() in p.lower()
-    ][:10]
+    ]
 
-    if matches:
+    if len(matches) > 0:
 
-        st.write("### Results")
+        st.write("### Matching Pokémon")
 
-        for pokemon in matches:
+        for pokemon in matches[:10]:
 
             if st.button(
                 pokemon,
-                use_container_width=True,
-                key=f"search_{pokemon}"
+                key=f"btn_{pokemon}",
+                use_container_width=True
             ):
-                selected_pokemon = pokemon
-                st.session_state["selected_pokemon"] = pokemon
+                st.session_state.selected_pokemon = pokemon
 
-# KEEP SELECTION AFTER RERUN
-if "selected_pokemon" in st.session_state:
-    selected_pokemon = st.session_state["selected_pokemon"]
+    else:
+        st.warning("No Pokémon found")
+
+# =====================================================
+# GET SELECTED POKEMON
+# =====================================================
+
+selected_pokemon = st.session_state.selected_pokemon
 
 # =====================================================
 # DISPLAY POKEMON
@@ -185,11 +194,12 @@ if selected_pokemon:
         type1 = str(row["Type 1"]).lower()
 
         type2 = ""
+
         if "Type 2" in row and pd.notna(row["Type 2"]):
             type2 = str(row["Type 2"]).lower()
 
         # =====================================================
-        # TYPES
+        # TYPES + STATS
         # =====================================================
 
         col1, col2 = st.columns(2)
@@ -202,10 +212,6 @@ if selected_pokemon:
 
             if type2 and type2 != "nan":
                 st.success(type2.capitalize())
-
-        # =====================================================
-        # STATS
-        # =====================================================
 
         with col2:
 
@@ -224,13 +230,13 @@ if selected_pokemon:
 
         st.subheader("⚔️ Moves")
 
-        move_list = [
+        moves = [
             ("Fast Move", str(row["Fast Move"]).strip()),
             ("Charged Move 1", str(row["Charged Move 1"]).strip()),
             ("Charged Move 2", str(row["Charged Move 2"]).strip())
         ]
 
-        for move_label, move_name in move_list:
+        for move_type_name, move_name in moves:
 
             move_type = MOVE_TYPES.get(move_name, "unknown")
 
@@ -238,7 +244,7 @@ if selected_pokemon:
 
                 st.markdown(f"### {move_name}")
 
-                st.write(f"Type: **{move_type.capitalize()}**")
+                st.write(f"Move Type: **{move_type.capitalize()}**")
 
                 if move_type in TYPE_EFFECTIVENESS:
 
@@ -250,20 +256,20 @@ if selected_pokemon:
 
                     if strong:
                         st.success(
-                            "✅ Super Effective: " +
-                            ", ".join([x.capitalize() for x in strong])
+                            "✅ Super Effective Against: "
+                            + ", ".join([x.capitalize() for x in strong])
                         )
 
                     if weak:
                         st.error(
-                            "❌ Not Effective: " +
-                            ", ".join([x.capitalize() for x in weak])
+                            "❌ Not Very Effective Against: "
+                            + ", ".join([x.capitalize() for x in weak])
                         )
 
                     if immune:
                         st.warning(
-                            "🚫 No Effect: " +
-                            ", ".join([x.capitalize() for x in immune])
+                            "🚫 No Effect Against: "
+                            + ", ".join([x.capitalize() for x in immune])
                         )
 
 # =====================================================
@@ -276,7 +282,7 @@ with st.sidebar:
 
     st.write(f"Pokémon Loaded: {len(pokemon_names)}")
 
-    st.write("✅ Live clickable autocomplete")
-    st.write("✅ Instant search results")
+    st.write("✅ Live autocomplete")
+    st.write("✅ Clickable suggestions")
     st.write("✅ Move effectiveness")
-    st.write("✅ Type checker")
+    st.write("✅ Type info")
