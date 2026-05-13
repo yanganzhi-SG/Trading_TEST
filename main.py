@@ -48,14 +48,42 @@ def load_data():
     fast_moves = pd.read_csv("fast_moves.csv")
     charged_moves = pd.read_csv("charged_moves.csv")
 
+    # CLEAN COLUMNS
     rankings.columns = rankings.columns.str.strip()
     fast_moves.columns = fast_moves.columns.str.strip()
     charged_moves.columns = charged_moves.columns.str.strip()
 
+    # CLEAN STRINGS
     rankings["Pokemon"] = rankings["Pokemon"].astype(str).str.strip()
 
-    fast_moves["Move"] = fast_moves["Move"].astype(str).str.strip()
-    charged_moves["Move"] = charged_moves["Move"].astype(str).str.strip()
+    fast_moves["Move"] = (
+        fast_moves["Move"]
+        .astype(str)
+        .str.strip()
+        .str.lower()
+    )
+
+    charged_moves["Move"] = (
+        charged_moves["Move"]
+        .astype(str)
+        .str.strip()
+        .str.lower()
+    )
+
+    # CLEAN TYPES
+    fast_moves["Type"] = (
+        fast_moves["Type"]
+        .astype(str)
+        .str.strip()
+        .str.title()
+    )
+
+    charged_moves["Type"] = (
+        charged_moves["Type"]
+        .astype(str)
+        .str.strip()
+        .str.title()
+    )
 
     return rankings, fast_moves, charged_moves
 
@@ -70,14 +98,14 @@ pokemon_names = sorted(
 )
 
 # =========================================================
-# SEARCH BAR
+# SEARCH
 # =========================================================
 
 selected_pokemon = st.selectbox(
     "🔍 Search Pokémon",
     options=pokemon_names,
     index=None,
-    placeholder="Type like: qu..."
+    placeholder="Type qu..."
 )
 
 # =========================================================
@@ -86,18 +114,20 @@ selected_pokemon = st.selectbox(
 
 def type_badge(type_name):
 
-    color = TYPE_COLORS.get(type_name, "#777777")
+    type_name = str(type_name).title().strip()
+
+    color = TYPE_COLORS.get(type_name, "#666666")
 
     st.markdown(
         f"""
         <div style="
             background-color:{color};
             color:white;
-            padding:8px;
-            border-radius:10px;
-            text-align:center;
+            padding:10px;
+            border-radius:12px;
             font-weight:bold;
-            margin-bottom:8px;
+            text-align:center;
+            margin-bottom:10px;
         ">
             {type_name}
         </div>
@@ -106,34 +136,51 @@ def type_badge(type_name):
     )
 
 # =========================================================
-# MOVE DISPLAY
+# MOVE CARD
 # =========================================================
 
 def show_move(move_name):
 
-    move_name = str(move_name).strip()
+    clean_move = str(move_name).strip().lower()
+
+    # =====================================================
+    # SEARCH BOTH FILES
+    # =====================================================
 
     move_data = fast_moves_df[
-        fast_moves_df["Move"] == move_name
+        fast_moves_df["Move"] == clean_move
     ]
 
     if move_data.empty:
 
         move_data = charged_moves_df[
-            charged_moves_df["Move"] == move_name
+            charged_moves_df["Move"] == clean_move
         ]
+
+    # =====================================================
+    # NOT FOUND
+    # =====================================================
 
     if move_data.empty:
 
-        st.warning(f"No move data found for {move_name}")
+        st.error(f"Move not found: {move_name}")
         return
+
+    # =====================================================
+    # GET FIRST MATCH
+    # =====================================================
 
     row = move_data.iloc[0]
 
-    move_type = str(row.get("Type", "Unknown"))
-    category = str(row.get("Category", "Unknown"))
+    move_type = str(row.get("Type", "Unknown")).title().strip()
 
-    color = TYPE_COLORS.get(move_type, "#777777")
+    category = str(row.get("Category", "Unknown")).strip()
+
+    color = TYPE_COLORS.get(move_type, "#666666")
+
+    # =====================================================
+    # CARD
+    # =====================================================
 
     with st.container(border=True):
 
@@ -141,17 +188,18 @@ def show_move(move_name):
             f"""
             <div style="
                 background-color:{color};
-                padding:12px;
-                border-radius:12px;
+                padding:15px;
+                border-radius:15px;
                 color:white;
             ">
-                <h3>{move_name}</h3>
-                <p><b>Type:</b> {move_type}</p>
-                <p><b>Category:</b> {category}</p>
+                <h2>{move_name}</h2>
+                <h4>{move_type} • {category}</h4>
             </div>
             """,
             unsafe_allow_html=True
         )
+
+        st.write("")
 
         col1, col2, col3 = st.columns(3)
 
@@ -203,19 +251,27 @@ if selected_pokemon:
 
         col1, col2 = st.columns(2)
 
+        # =====================================================
+        # TYPES
+        # =====================================================
+
         with col1:
 
             st.subheader("🧬 Types")
 
-            type1 = str(row.get("Type 1", ""))
+            type1 = str(row.get("Type 1", "")).title().strip()
 
-            if type1 != "nan" and type1 != "":
+            if type1 and type1 != "Nan":
                 type_badge(type1)
 
-            type2 = str(row.get("Type 2", ""))
+            type2 = str(row.get("Type 2", "")).title().strip()
 
-            if type2 != "nan" and type2 != "":
+            if type2 and type2 != "Nan":
                 type_badge(type2)
+
+        # =====================================================
+        # STATS
+        # =====================================================
 
         with col2:
 
@@ -236,23 +292,40 @@ if selected_pokemon:
         st.divider()
 
         # =====================================================
-        # MOVES
+        # FAST MOVE
         # =====================================================
 
         st.subheader("⚡ Fast Move")
 
         if "Fast Move" in row:
-            show_move(row["Fast Move"])
+
+            fast_move = str(row["Fast Move"]).strip()
+
+            show_move(fast_move)
+
+        # =====================================================
+        # CHARGED MOVE 1
+        # =====================================================
 
         st.subheader("🔥 Charged Move 1")
 
         if "Charged Move 1" in row:
-            show_move(row["Charged Move 1"])
+
+            charged1 = str(row["Charged Move 1"]).strip()
+
+            show_move(charged1)
+
+        # =====================================================
+        # CHARGED MOVE 2
+        # =====================================================
 
         st.subheader("💥 Charged Move 2")
 
         if "Charged Move 2" in row:
-            show_move(row["Charged Move 2"])
+
+            charged2 = str(row["Charged Move 2"]).strip()
+
+            show_move(charged2)
 
 # =========================================================
 # SIDEBAR
@@ -262,9 +335,9 @@ with st.sidebar:
 
     st.header("📘 Features")
 
-    st.write("✅ Real autocomplete search")
-    st.write("✅ Type colored moves")
-    st.write("✅ Move stats")
-    st.write("✅ Fast + Charged attacks")
-    st.write("✅ DPT / EPT / DPE")
-    st.write("✅ Pokémon stats")
+    st.write("✅ Fixed move searching")
+    st.write("✅ Searches BOTH csv files")
+    st.write("✅ Aqua Tail now works")
+    st.write("✅ Correct type colors")
+    st.write("✅ Styled move cards")
+    st.write("✅ Live Pokémon search")
