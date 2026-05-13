@@ -1,5 +1,6 @@
 import streamlit as st
 import pandas as pd
+import re
 
 # =========================================================
 # PAGE CONFIG
@@ -38,6 +39,19 @@ TYPE_COLORS = {
 }
 
 # =========================================================
+# CLEAN TEXT FUNCTION
+# =========================================================
+
+def clean_text(text):
+
+    text = str(text).strip().lower()
+
+    # REMOVE * AND SPECIAL SYMBOLS
+    text = re.sub(r"[^a-z0-9\s]", "", text)
+
+    return text
+
+# =========================================================
 # LOAD DATA
 # =========================================================
 
@@ -53,21 +67,22 @@ def load_data():
     fast_moves.columns = fast_moves.columns.str.strip()
     charged_moves.columns = charged_moves.columns.str.strip()
 
-    # CLEAN STRINGS
-    rankings["Pokemon"] = rankings["Pokemon"].astype(str).str.strip()
-
-    fast_moves["Move"] = (
-        fast_moves["Move"]
+    # CLEAN POKEMON NAMES
+    rankings["Pokemon"] = (
+        rankings["Pokemon"]
         .astype(str)
         .str.strip()
-        .str.lower()
     )
 
-    charged_moves["Move"] = (
+    # CLEAN MOVE NAMES
+    fast_moves["CleanMove"] = (
+        fast_moves["Move"]
+        .apply(clean_text)
+    )
+
+    charged_moves["CleanMove"] = (
         charged_moves["Move"]
-        .astype(str)
-        .str.strip()
-        .str.lower()
+        .apply(clean_text)
     )
 
     # CLEAN TYPES
@@ -98,7 +113,7 @@ pokemon_names = sorted(
 )
 
 # =========================================================
-# SEARCH
+# SEARCH BAR
 # =========================================================
 
 selected_pokemon = st.selectbox(
@@ -125,8 +140,8 @@ def type_badge(type_name):
             color:white;
             padding:10px;
             border-radius:12px;
-            font-weight:bold;
             text-align:center;
+            font-weight:bold;
             margin-bottom:10px;
         ">
             {type_name}
@@ -136,25 +151,31 @@ def type_badge(type_name):
     )
 
 # =========================================================
-# MOVE CARD
+# SHOW MOVE
 # =========================================================
 
 def show_move(move_name):
 
-    clean_move = str(move_name).strip().lower()
+    original_move_name = str(move_name).strip()
+
+    clean_move_name = clean_text(move_name)
 
     # =====================================================
-    # SEARCH BOTH FILES
+    # SEARCH FAST MOVES
     # =====================================================
 
     move_data = fast_moves_df[
-        fast_moves_df["Move"] == clean_move
+        fast_moves_df["CleanMove"] == clean_move_name
     ]
+
+    # =====================================================
+    # SEARCH CHARGED MOVES
+    # =====================================================
 
     if move_data.empty:
 
         move_data = charged_moves_df[
-            charged_moves_df["Move"] == clean_move
+            charged_moves_df["CleanMove"] == clean_move_name
         ]
 
     # =====================================================
@@ -163,12 +184,8 @@ def show_move(move_name):
 
     if move_data.empty:
 
-        st.error(f"Move not found: {move_name}")
+        st.error(f"Move not found: {original_move_name}")
         return
-
-    # =====================================================
-    # GET FIRST MATCH
-    # =====================================================
 
     row = move_data.iloc[0]
 
@@ -179,7 +196,7 @@ def show_move(move_name):
     color = TYPE_COLORS.get(move_type, "#666666")
 
     # =====================================================
-    # CARD
+    # MOVE CARD
     # =====================================================
 
     with st.container(border=True):
@@ -192,7 +209,7 @@ def show_move(move_name):
                 border-radius:15px;
                 color:white;
             ">
-                <h2>{move_name}</h2>
+                <h2>{original_move_name}</h2>
                 <h4>{move_type} • {category}</h4>
             </div>
             """,
@@ -251,10 +268,7 @@ if selected_pokemon:
 
         col1, col2 = st.columns(2)
 
-        # =====================================================
         # TYPES
-        # =====================================================
-
         with col1:
 
             st.subheader("🧬 Types")
@@ -269,10 +283,7 @@ if selected_pokemon:
             if type2 and type2 != "Nan":
                 type_badge(type2)
 
-        # =====================================================
         # STATS
-        # =====================================================
-
         with col2:
 
             st.subheader("📊 Stats")
@@ -292,40 +303,23 @@ if selected_pokemon:
         st.divider()
 
         # =====================================================
-        # FAST MOVE
+        # MOVES
         # =====================================================
 
         st.subheader("⚡ Fast Move")
 
         if "Fast Move" in row:
-
-            fast_move = str(row["Fast Move"]).strip()
-
-            show_move(fast_move)
-
-        # =====================================================
-        # CHARGED MOVE 1
-        # =====================================================
+            show_move(row["Fast Move"])
 
         st.subheader("🔥 Charged Move 1")
 
         if "Charged Move 1" in row:
-
-            charged1 = str(row["Charged Move 1"]).strip()
-
-            show_move(charged1)
-
-        # =====================================================
-        # CHARGED MOVE 2
-        # =====================================================
+            show_move(row["Charged Move 1"])
 
         st.subheader("💥 Charged Move 2")
 
         if "Charged Move 2" in row:
-
-            charged2 = str(row["Charged Move 2"]).strip()
-
-            show_move(charged2)
+            show_move(row["Charged Move 2"])
 
 # =========================================================
 # SIDEBAR
@@ -335,9 +329,8 @@ with st.sidebar:
 
     st.header("📘 Features")
 
-    st.write("✅ Fixed move searching")
-    st.write("✅ Searches BOTH csv files")
-    st.write("✅ Aqua Tail now works")
-    st.write("✅ Correct type colors")
-    st.write("✅ Styled move cards")
-    st.write("✅ Live Pokémon search")
+    st.write("✅ Fixed * move names")
+    st.write("✅ Removes special symbols")
+    st.write("✅ Aqua Tail* now works")
+    st.write("✅ Correct move colors")
+    st.write("✅ Searches both csv files")
