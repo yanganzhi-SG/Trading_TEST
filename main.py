@@ -1,24 +1,23 @@
 import streamlit as st
 import pandas as pd
 
-# =====================================================
+# =========================================================
 # PAGE CONFIG
-# =====================================================
+# =========================================================
 
 st.set_page_config(
     page_title="Pokémon GO Search",
     layout="wide"
 )
 
-st.title("⚔️ Pokémon GO Search")
+st.title("⚔️ Pokémon GO Search Engine")
 
-# =====================================================
-# LOAD CSV
-# =====================================================
+# =========================================================
+# LOAD DATA
+# =========================================================
 
 @st.cache_data
 def load_data():
-
     df = pd.read_csv("cp1500_all_overall_rankings.csv")
 
     df.columns = df.columns.str.strip()
@@ -41,9 +40,9 @@ pokemon_names = sorted(
     .tolist()
 )
 
-# =====================================================
+# =========================================================
 # TYPE EFFECTIVENESS
-# =====================================================
+# =========================================================
 
 TYPE_EFFECTIVENESS = {
     "water": {
@@ -97,9 +96,9 @@ TYPE_EFFECTIVENESS = {
     }
 }
 
-# =====================================================
+# =========================================================
 # MOVE TYPES
-# =====================================================
+# =========================================================
 
 MOVE_TYPES = {
     "Mud Shot": "ground",
@@ -124,27 +123,29 @@ MOVE_TYPES = {
     "Water Gun": "water"
 }
 
-# =====================================================
+# =========================================================
 # SESSION STATE
-# =====================================================
+# =========================================================
 
 if "selected_pokemon" not in st.session_state:
     st.session_state.selected_pokemon = None
 
-# =====================================================
-# SEARCH INPUT
-# =====================================================
+# =========================================================
+# SEARCH BOX
+# =========================================================
 
 st.subheader("🔍 Search Pokémon")
 
 search = st.text_input(
     "",
-    placeholder="Type: qu"
+    placeholder="Start typing... like 'qu'"
 )
 
-# =====================================================
-# LIVE STARTS-WITH SEARCH
-# =====================================================
+# =========================================================
+# LIVE SEARCH RESULTS
+# =========================================================
+
+matches = []
 
 if search:
 
@@ -155,32 +156,39 @@ if search:
         if p.lower().startswith(search_lower)
     ]
 
-    if len(matches) > 0:
+# =========================================================
+# SHOW RESULTS ONLY IF NO POKEMON SELECTED
+# =========================================================
 
-        st.write("### Pokémon Results")
+if matches and st.session_state.selected_pokemon is None:
 
-        for pokemon in matches[:15]:
+    st.markdown("### Results")
 
-            # clickable result row
-            if st.button(
-                f"⚔️ {pokemon}",
-                key=f"pokemon_{pokemon}",
-                use_container_width=True
-            ):
-                st.session_state.selected_pokemon = pokemon
+    for pokemon in matches[:15]:
 
-    else:
-        st.warning("No Pokémon found")
+        if st.button(
+            pokemon,
+            key=f"search_{pokemon}",
+            use_container_width=True
+        ):
+            st.session_state.selected_pokemon = pokemon
+            st.rerun()
 
-# =====================================================
-# SELECTED POKEMON
-# =====================================================
+# =========================================================
+# CLEAR BUTTON
+# =========================================================
+
+if st.session_state.selected_pokemon is not None:
+
+    if st.button("⬅️ Back To Search"):
+        st.session_state.selected_pokemon = None
+        st.rerun()
+
+# =========================================================
+# DISPLAY POKEMON
+# =========================================================
 
 selected_pokemon = st.session_state.selected_pokemon
-
-# =====================================================
-# DISPLAY POKEMON
-# =====================================================
 
 if selected_pokemon:
 
@@ -192,7 +200,11 @@ if selected_pokemon:
 
         st.divider()
 
-        st.header(f"🛡️ {selected_pokemon}")
+        st.header(f"⚔️ {selected_pokemon}")
+
+        # =========================================================
+        # TYPES
+        # =========================================================
 
         type1 = str(row["Type 1"]).lower()
 
@@ -201,37 +213,37 @@ if selected_pokemon:
         if "Type 2" in row and pd.notna(row["Type 2"]):
             type2 = str(row["Type 2"]).lower()
 
-        # =====================================================
-        # TYPES + STATS
-        # =====================================================
-
         col1, col2 = st.columns(2)
 
         with col1:
 
-            st.subheader("Types")
+            st.subheader("🧬 Types")
 
             st.success(type1.capitalize())
 
             if type2 and type2 != "nan":
                 st.success(type2.capitalize())
 
+        # =========================================================
+        # STATS
+        # =========================================================
+
         with col2:
 
-            st.subheader("Stats")
+            st.subheader("📊 Stats")
 
             st.write(f"⚔️ Attack: {row['Attack']}")
             st.write(f"🛡️ Defense: {row['Defense']}")
-            st.write(f"❤️ Stamina: {row['Stamina']}")
+            st.write(f"❤️ HP: {row['Stamina']}")
             st.write(f"🔥 CP: {row['CP']}")
 
         st.divider()
 
-        # =====================================================
+        # =========================================================
         # MOVES
-        # =====================================================
+        # =========================================================
 
-        st.subheader("⚔️ Moves")
+        st.subheader("⚡ Moves")
 
         move_list = [
             str(row["Fast Move"]).strip(),
@@ -260,32 +272,37 @@ if selected_pokemon:
                     if strong:
                         st.success(
                             "✅ Super Effective Against: "
-                            + ", ".join([x.capitalize() for x in strong])
+                            + ", ".join(
+                                [x.capitalize() for x in strong]
+                            )
                         )
 
                     if weak:
                         st.error(
                             "❌ Not Very Effective Against: "
-                            + ", ".join([x.capitalize() for x in weak])
+                            + ", ".join(
+                                [x.capitalize() for x in weak]
+                            )
                         )
 
                     if immune:
                         st.warning(
                             "🚫 No Effect Against: "
-                            + ", ".join([x.capitalize() for x in immune])
+                            + ", ".join(
+                                [x.capitalize() for x in immune]
+                            )
                         )
 
-# =====================================================
+# =========================================================
 # SIDEBAR
-# =====================================================
+# =========================================================
 
 with st.sidebar:
 
-    st.header("📊 Database")
+    st.header("📘 Search Features")
 
-    st.write(f"Pokémon Loaded: {len(pokemon_names)}")
-
-    st.write("✅ Proper starts-with search")
-    st.write("✅ Instant clickable list")
-    st.write("✅ No dropdown needed")
-    st.write("✅ Live filtering")
+    st.write("✅ Live search while typing")
+    st.write("✅ No need to press enter")
+    st.write("✅ Instant clickable results")
+    st.write("✅ Results disappear after clicking")
+    st.write("✅ Back button to search again")
