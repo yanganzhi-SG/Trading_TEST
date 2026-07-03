@@ -1,14 +1,21 @@
+"""
+AI Trading Strategy Dashboard
+------------------------------
+Rule-based technical screener that scores tickers and shows the exact
+reasons behind each signal (transparent, not a black box).
+
+Run with:  streamlit run app.py
+"""
+
 import streamlit as st
 import pandas as pd
 import numpy as np
 import yfinance as yf
-import requests
-from datetime import datetime, timedelta
 
-st.set_page_config(page_title="AI Trading + Congress Trades", layout="wide")
+st.set_page_config(page_title="AI Trading Strategy", layout="wide")
 
 # --------------------------------------------------------------------------
-# Shared helpers
+# Helpers
 # --------------------------------------------------------------------------
 
 @st.cache_data(ttl=60 * 30, show_spinner=False)
@@ -133,126 +140,62 @@ def analyze_ticker(ticker: str) -> dict:
 
 
 # --------------------------------------------------------------------------
-# Congress trading helpers (QuiverQuant)
-# --------------------------------------------------------------------------
-
-QUIVER_BASE = "https://api.quiverquant.com"
-
-
-@st.cache_data(ttl=60 * 30, show_spinner=False)
-def get_congress_trades(api_key: str, ticker: str | None = None) -> pd.DataFrame:
-    headers = {"Authorization": f"Bearer {api_key}", "Accept": "application/json"}
-    if ticker:
-        url = f"{QUIVER_BASE}/beta/historical/congresstrading/{ticker.upper()}"
-    else:
-        url = f"{QUIVER_BASE}/beta/bulk/congresstrading"
-    resp = requests.get(url, headers=headers, timeout=30)
-    resp.raise_for_status()
-    data = resp.json()
-    df = pd.DataFrame(data)
-    return df
-
-
-# --------------------------------------------------------------------------
 # UI
 # --------------------------------------------------------------------------
 
-st.title("📈 AI Trading Strategy & Congress Trades")
+st.title("📈 AI Trading Strategy")
+st.subheader("Rule-based technical screener")
+st.caption(
+    "This scores tickers using transparent technical rules (trend, RSI, MACD, volume). "
+    "It is **not** financial advice — it's a decision-support tool. Verify independently."
+)
 
-tab1, tab2 = st.tabs(["🤖 AI Trading Strategy", "🏛️ Congress Trades"])
+default_tickers = "AAPL, MSFT, NVDA, TSLA, AMZN"
+tickers_input = st.text_input("Tickers to analyze (comma-separated)", value=default_tickers)
+run = st.button("Run Analysis", type="primary")
 
-# ---- Tab 1 ----
-with tab1:
-    st.subheader("Rule-based technical screener")
-    st.caption(
-        "This scores tickers using transparent technical rules (trend, RSI, MACD, volume). "
-        "It is **not** financial advice — it's a decision-support tool. Verify independently."
-    )
-
-    default_tickers = "AAPL, MSFT, NVDA, TSLA, AMZN"
-    tickers_input = st.text_input("Tickers to analyze (comma-separated)", value=default_tickers)
-    run = st.button("Run Analysis", type="primary")
-
-    if run:
-        tickers = [t.strip().upper() for t in tickers_input.split(",") if t.strip()]
-        results = []
-        with st.spinner("Fetching data and computing signals..."):
-            for t in tickers:
-                try:
-                    results.append(analyze_ticker(t))
-                except Exception as e:
-                    results.append({"ticker": t, "error": str(e)})
-
-        summary_rows = []
-        for r in results:
-            if "error" in r:
-                summary_rows.append({"Ticker": r["ticker"], "Verdict": "ERROR", "Score": None,
-                                      "Last Close": None, "1M % Chg": None, "RSI": None})
-            else:
-                summary_rows.append({
-                    "Ticker": r["ticker"],
-                    "Verdict": r["verdict"],
-                    "Score": r["score"],
-                    "Last Close": r["last_close"],
-                    "1M % Chg": r["pct_change_1m"],
-                    "RSI": r["rsi"],
-                })
-        summary_df = pd.DataFrame(summary_rows).sort_values("Score", ascending=False, na_position="last")
-        st.dataframe(summary_df, use_container_width=True, hide_index=True)
-
-        st.markdown("### Detailed reasoning")
-        for r in results:
-            if "error" in r:
-                st.error(f"**{r['ticker']}**: {r['error']}")
-                continue
-            with st.expander(f"{r['ticker']} — {r['verdict']} (score: {r['score']})"):
-                for reason in r["reasons"]:
-                    st.markdown(f"- {reason}")
-
-        st.info(
-            
-        )
-    else:
-        st.info("Enter tickers and click **Run Analysis** to generate signals.")
-
-# ---- Tab 2 ----
-with tab2:
-    st.subheader("US Congress Stock Trading Disclosures")
-    st.caption("Data source: QuiverQuant API. Requires your own API key.")
-
-    api_key = st.text_input("QuiverQuant API Key", type="password",
-                             help="Get a key at quiverquant.com. Not stored anywhere — used only for this session.")
-    filter_ticker = st.text_input("Filter by ticker (optional, e.g. NVDA)", value="")
-
-    fetch = st.button("Fetch Congress Trades", type="primary")
-
-    if fetch:
-        if not api_key:
-            st.warning("Enter your QuiverQuant API key first.")
-        else:
+if run:
+    tickers = [t.strip().upper() for t in tickers_input.split(",") if t.strip()]
+    results = []
+    with st.spinner("Fetching data and computing signals..."):
+        for t in tickers:
             try:
-                with st.spinner("Fetching congressional trading data..."):
-                    df = get_congress_trades(api_key, filter_ticker.strip() or None)
-                if df.empty:
-                    st.warning("No data returned. Check your ticker/API key.")
-                else:
-                    date_col = next((c for c in ["TransactionDate", "Traded", "Date"] if c in df.columns), None)
-                    if date_col:
-                        df[date_col] = pd.to_datetime(df[date_col], errors="coerce")
-                        df = df.sort_values(date_col, ascending=False)
-
-                    st.dataframe(df, use_container_width=True, hide_index=True)
-
-                    if "Transaction" in df.columns and "Ticker" in df.columns:
-                        st.markdown("### Most active tickers (by disclosure count)")
-                        top_tickers = df["Ticker"].value_counts().head(10)
-                        st.bar_chart(top_tickers)
-            except requests.exceptions.HTTPError as e:
-                st.error(f"API error: {e}. Check that your API key is valid and has access to this endpoint.")
+                results.append(analyze_ticker(t))
             except Exception as e:
-                st.error(f"Something went wrong: {e}")
-    else:
-        st.info("Enter your API key and click **Fetch Congress Trades**.")
+                results.append({"ticker": t, "error": str(e)})
+
+    summary_rows = []
+    for r in results:
+        if "error" in r:
+            summary_rows.append({"Ticker": r["ticker"], "Verdict": "ERROR", "Score": None,
+                                  "Last Close": None, "1M % Chg": None, "RSI": None})
+        else:
+            summary_rows.append({
+                "Ticker": r["ticker"],
+                "Verdict": r["verdict"],
+                "Score": r["score"],
+                "Last Close": r["last_close"],
+                "1M % Chg": r["pct_change_1m"],
+                "RSI": r["rsi"],
+            })
+    summary_df = pd.DataFrame(summary_rows).sort_values("Score", ascending=False, na_position="last")
+    st.dataframe(summary_df, use_container_width=True, hide_index=True)
+
+    st.markdown("### Detailed reasoning")
+    for r in results:
+        if "error" in r:
+            st.error(f"**{r['ticker']}**: {r['error']}")
+            continue
+        with st.expander(f"{r['ticker']} — {r['verdict']} (score: {r['score']})"):
+            for reason in r["reasons"]:
+                st.markdown(f"- {reason}")
+
+    st.info(
+        "⚠️ Educational tool only. Technical scores reflect historical price patterns, "
+        "not fundamentals, news, or risk tolerance. This is not personalized financial advice."
+    )
+else:
+    st.info("Enter tickers and click **Run Analysis** to generate signals.")
 
 st.markdown("---")
 st.caption(
