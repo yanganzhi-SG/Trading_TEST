@@ -210,8 +210,7 @@ with tab1:
                     st.markdown(f"- {reason}")
 
         st.info(
-            "⚠️ Educational tool only. Technical scores reflect historical price patterns, "
-            "not fundamentals, news, or risk tolerance. This is not personalized financial advice."
+            
         )
     else:
         st.info("Enter tickers and click **Run Analysis** to generate signals.")
