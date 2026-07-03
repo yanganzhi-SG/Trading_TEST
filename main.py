@@ -1,13 +1,3 @@
-"""
-AI Trading Strategy + Congress Trades Dashboard
-------------------------------------------------
-Tab 1: Rule-based technical screener that scores tickers and shows the
-       exact reasons behind each signal (transparent, not a black box).
-Tab 2: US Congress stock trading disclosures via the QuiverQuant API.
-
-Run with:  streamlit run app.py
-"""
-
 import streamlit as st
 import pandas as pd
 import numpy as np
